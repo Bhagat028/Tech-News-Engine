@@ -1,0 +1,44 @@
+name: Daily Deep Tech Scraper
+
+on:
+  schedule:
+    # Run at 02:30 UTC (08:00 AM India Standard Time)
+    - cron: '30 2 * * *'
+  workflow_dispatch: # Manual trigger button
+
+jobs:
+  run-scraper:
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: write  # Needed to save the .md file back to repo
+
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install Dependencies
+        run: |
+          pip install -r requirements.txt
+          playwright install-deps 
+          playwright install chromium
+
+      - name: Run Engine
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          TURSO_DB_URL: ${{ secrets.TURSO_DB_URL }}
+          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+        run: python main.py
+
+      - name: Commit and Push News
+        run: |
+          git config --global user.name 'DeepTechBot'
+          git config --global user.email 'bot@noreply.github.com'
+          git add content/
+          # Only commit if there are changes
+          git diff --quiet && git diff --staged --quiet || (git commit -m "📰 New Daily Intel" && git push)

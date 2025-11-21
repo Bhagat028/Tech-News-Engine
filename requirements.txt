@@ -1,0 +1,7 @@
+crawl4ai
+feedparser
+google-generativeai
+libsql-client
+python-dotenv
+asyncio
+requests
