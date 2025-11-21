@@ -1,0 +1,276 @@
+{
+  "name": "Indian Tech News v2 - AI Summarization",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "hoursInterval": 12
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Every 12 Hours",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://inc42.com/feed/",
+        "options": {}
+      },
+      "id": "rss-inc42",
+      "name": "RSS: Inc42",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1,
+      "position": [460, 180]
+    },
+    {
+      "parameters": {
+        "url": "https://news.google.com/rss/search?q=site:entrackr.com&hl=en-IN&gl=IN&ceid=IN:en",
+        "options": {}
+      },
+      "id": "rss-entrackr",
+      "name": "RSS: Entrackr (via Google)",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://www.reddit.com/r/IndianStartups/hot.json?limit=5",
+        "authentication": "none",
+        "options": {
+          "headers": {
+            "entries": [
+              {
+                "name": "User-Agent",
+                "value": "n8n-workflow/1.0"
+              }
+            ]
+          }
+        }
+      },
+      "id": "http-reddit",
+      "name": "Reddit: IndianStartups",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 420]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://hn.algolia.com/api/v1/search?query=india+startup&tags=story&hitsPerPage=5",
+        "authentication": "none",
+        "options": {}
+      },
+      "id": "http-hackernews",
+      "name": "Hacker News: India",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 540]
+    },
+    {
+      "parameters": {
+        "mode": "append",
+        "options": {}
+      },
+      "id": "merge-all",
+      "name": "Merge All Sources",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [680, 360]
+    },
+    {
+      "parameters": {
+        "jsCode": "const normalized = [];\n\nfor (const item of $input.all()) {\n  let newsItem = {\n    title: '',\n    url: '',\n    source: '',\n    content: '',\n    timestamp: new Date().toISOString()\n  };\n\n  // Handle RSS Feed (Inc42, Entrackr, etc)\n  if (item.json.title && item.json.link) {\n    newsItem.title = item.json.title;\n    newsItem.url = item.json.link;\n    newsItem.source = item.json.feed?.title || 'RSS Feed';\n    newsItem.content = item.json.contentSnippet || item.json.description || item.json.content || '';\n  }\n  \n  // Handle Reddit\n  else if (item.json.data?.children) {\n    for (const child of item.json.data.children) {\n      const post = child.data;\n      if (post && post.title) {\n        normalized.push({\n          title: post.title,\n          url: post.url || `https://reddit.com${post.permalink}`,\n          source: 'Reddit r/IndianStartups',\n          content: post.selftext || post.title,\n          timestamp: new Date(post.created_utc * 1000).toISOString()\n        });\n      }\n    }\n    continue;\n  }\n  \n  // Handle Hacker News\n  else if (item.json.hits) {\n    for (const hit of item.json.hits) {\n      if (hit && hit.title) {\n        normalized.push({\n          title: hit.title,\n          url: hit.url || `https://news.ycombinator.com/item?id=${hit.objectID}`,\n          source: 'Hacker News',\n          content: hit.story_text || hit.title,\n          timestamp: new Date(hit.created_at).toISOString()\n        });\n      }\n    }\n    continue;\n  }\n\n  if (newsItem.title) {\n    normalized.push(newsItem);\n  }\n}\n\n// Remove duplicates by title\nconst unique = [];\nconst seen = new Set();\n\nfor (const item of normalized) {\n  const key = item.title.toLowerCase().trim();\n  if (!seen.has(key)) {\n    seen.add(key);\n    unique.push(item);\n  }\n}\n\n// Limit to 10 items to avoid too many API calls\nreturn unique.slice(0, 10).map(item => ({ json: item }));"
+      },
+      "id": "code-normalize",
+      "name": "Normalize & Deduplicate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 360]
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "You are analyzing Indian tech news for a daily newsletter. Write summaries in the style of 'Runtime' channel - concise, technical, and insightful.\n\nFormat each summary as:\n* **[Title/Company Name]**: [One sentence summary]\n  * *Details:* [Key technical/business facts]\n  * *Signal:* [Why this matters for Indian tech ecosystem]\n  * *Source:* [URL]\n\nBe specific about numbers, names, and technical details. Focus on what's exclusive or noteworthy."
+        },
+        "prompt": "=Summarize this Indian tech news item:\n\n**Title:** {{ $json.title }}\n**Source:** {{ $json.source }}\n**Content:** {{ $json.content.substring(0, 1000) }}\n**URL:** {{ $json.url }}\n\nProvide a concise summary in Runtime style."
+      },
+      "id": "gemini-summarize",
+      "name": "AI: Summarize Each Item",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.1,
+      "position": [1120, 360],
+      "credentials": {
+        "googleGeminiOAuth2Api": {
+          "id": "PLACEHOLDER",
+          "name": "Google Gemini account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "options": {}
+      },
+      "id": "aggregate-summaries",
+      "name": "Aggregate All Summaries",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [1340, 360]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get all items with their summaries\nconst items = $('AI: Summarize Each Item').all();\n\n// Get current date\nconst date = new Date();\nconst dateStr = date.toISOString().split('T')[0];\nconst readableDate = date.toLocaleDateString('en-US', { \n  day: 'numeric', \n  month: 'short', \n  year: 'numeric' \n});\n\n// Build markdown content\nlet markdown = `# Daily Intel: ${readableDate}\\n\\n`;\nmarkdown += `## ⚡ Indian Tech Signals\\n\\n`;\n\n// Add each summary\nfor (const item of items) {\n  const summary = item.json.response?.text || item.json.output || item.json.text || 'No summary available';\n  markdown += summary + '\\n\\n';\n}\n\nmarkdown += `---\\n*🤖 Generated by n8n Tech News Engine*\\n`;\n\nreturn [{\n  json: {\n    markdown: markdown,\n    filename: `${dateStr}.md`,\n    date: dateStr,\n    itemCount: items.length\n  }\n}];"
+      },
+      "id": "create-markdown",
+      "name": "Create Markdown Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1560, 360]
+    },
+    {
+      "parameters": {
+        "content": "## 🎯 AI Summary Generated!\n\nThe workflow creates a markdown file with:\n- AI-summarized news items\n- Runtime-style formatting\n- Ready for publishing\n\nNext steps:\n1. Save to file system\n2. Push to GitHub\n3. Save to Turso DB",
+        "height": 303,
+        "width": 389
+      },
+      "id": "sticky-note-results",
+      "name": "Next: Save & Publish",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [1760, 240]
+    }
+  ],
+  "connections": {
+    "Every 12 Hours": {
+      "main": [
+        [
+          {
+            "node": "RSS: Inc42",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "RSS: Entrackr (via Google)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Reddit: IndianStartups",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Hacker News: India",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RSS: Inc42": {
+      "main": [
+        [
+          {
+            "node": "Merge All Sources",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RSS: Entrackr (via Google)": {
+      "main": [
+        [
+          {
+            "node": "Merge All Sources",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Reddit: IndianStartups": {
+      "main": [
+        [
+          {
+            "node": "Merge All Sources",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Hacker News: India": {
+      "main": [
+        [
+          {
+            "node": "Merge All Sources",
+            "type": "main",
+            "index": 3
+          }
+        ]
+      ]
+    },
+    "Merge All Sources": {
+      "main": [
+        [
+          {
+            "node": "Normalize & Deduplicate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize & Deduplicate": {
+      "main": [
+        [
+          {
+            "node": "AI: Summarize Each Item",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI: Summarize Each Item": {
+      "main": [
+        [
+          {
+            "node": "Aggregate All Summaries",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate All Summaries": {
+      "main": [
+        [
+          {
+            "node": "Create Markdown Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2025-11-21T00:00:00.000Z",
+  "versionId": "2"
+}

@@ -1,0 +1,203 @@
+{
+  "name": "Indian Tech News v1 - Minimal",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "hoursInterval": 12
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Every 12 Hours",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://inc42.com/feed/",
+        "options": {}
+      },
+      "id": "rss-inc42",
+      "name": "RSS: Inc42",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1,
+      "position": [460, 180]
+    },
+    {
+      "parameters": {
+        "url": "https://news.google.com/rss/search?q=site:entrackr.com&hl=en-IN&gl=IN&ceid=IN:en",
+        "options": {}
+      },
+      "id": "rss-entrackr",
+      "name": "RSS: Entrackr (via Google)",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://www.reddit.com/r/IndianStartups/hot.json?limit=5",
+        "authentication": "none",
+        "options": {
+          "headers": {
+            "entries": [
+              {
+                "name": "User-Agent",
+                "value": "n8n-workflow/1.0"
+              }
+            ]
+          }
+        }
+      },
+      "id": "http-reddit",
+      "name": "Reddit: IndianStartups",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 420]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://hn.algolia.com/api/v1/search?query=india+startup&tags=story&hitsPerPage=5",
+        "authentication": "none",
+        "options": {}
+      },
+      "id": "http-hackernews",
+      "name": "Hacker News: India",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 540]
+    },
+    {
+      "parameters": {
+        "mode": "append",
+        "options": {}
+      },
+      "id": "merge-all",
+      "name": "Merge All Sources",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [680, 360]
+    },
+    {
+      "parameters": {
+        "jsCode": "const normalized = [];\n\nfor (const item of $input.all()) {\n  let newsItem = {\n    title: '',\n    url: '',\n    source: '',\n    content: '',\n    timestamp: new Date().toISOString(),\n    raw_data: JSON.stringify(item.json).substring(0, 500)\n  };\n\n  // Handle RSS Feed (Inc42, Entrackr, etc)\n  if (item.json.title && item.json.link) {\n    newsItem.title = item.json.title;\n    newsItem.url = item.json.link;\n    newsItem.source = item.json.feed?.title || 'RSS Feed';\n    newsItem.content = item.json.contentSnippet || item.json.description || item.json.content || '';\n  }\n  \n  // Handle Reddit\n  else if (item.json.data?.children) {\n    for (const child of item.json.data.children) {\n      const post = child.data;\n      if (post && post.title) {\n        normalized.push({\n          title: post.title,\n          url: post.url || `https://reddit.com${post.permalink}`,\n          source: 'Reddit r/IndianStartups',\n          content: post.selftext || '',\n          timestamp: new Date(post.created_utc * 1000).toISOString()\n        });\n      }\n    }\n    continue; // Skip the main push below since we pushed inside loop\n  }\n  \n  // Handle Hacker News\n  else if (item.json.hits) {\n    for (const hit of item.json.hits) {\n      if (hit && hit.title) {\n        normalized.push({\n          title: hit.title,\n          url: hit.url || `https://news.ycombinator.com/item?id=${hit.objectID}`,\n          source: 'Hacker News',\n          content: hit.story_text || '',\n          timestamp: new Date(hit.created_at).toISOString()\n        });\n      }\n    }\n    continue; // Skip the main push below\n  }\n\n  // Only push if we populated the newsItem (for RSS)\n  if (newsItem.title) {\n    normalized.push(newsItem);\n  }\n}\n\n// Remove duplicates by title\nconst unique = [];\nconst seen = new Set();\n\nfor (const item of normalized) {\n  const key = item.title.toLowerCase().trim();\n  if (!seen.has(key)) {\n    seen.add(key);\n    unique.push(item);\n  }\n}\n\nreturn unique.map(item => ({ json: item }));"
+      },
+      "id": "code-normalize",
+      "name": "Normalize & Deduplicate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 360]
+    },
+    {
+      "parameters": {
+        "content": "## 📊 Collected {{ $json.length }} News Items\n\n{{ $json.map((item, i) => `${i+1}. **${item.title}**\\n   - Source: ${item.source}\\n   - URL: ${item.url}\\n`).join('\\n') }}",
+        "height": 464,
+        "width": 567
+      },
+      "id": "sticky-note",
+      "name": "Results Preview",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [1120, 240]
+    }
+  ],
+  "connections": {
+    "Every 12 Hours": {
+      "main": [
+        [
+          {
+            "node": "RSS: Inc42",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "RSS: Entrackr",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Reddit: IndianStartups",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Hacker News: India",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RSS: Inc42": {
+      "main": [
+        [
+          {
+            "node": "Merge All Sources",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RSS: Entrackr": {
+      "main": [
+        [
+          {
+            "node": "Merge All Sources",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Reddit: IndianStartups": {
+      "main": [
+        [
+          {
+            "node": "Merge All Sources",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Hacker News: India": {
+      "main": [
+        [
+          {
+            "node": "Merge All Sources",
+            "type": "main",
+            "index": 3
+          }
+        ]
+      ]
+    },
+    "Merge All Sources": {
+      "main": [
+        [
+          {
+            "node": "Normalize & Deduplicate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2025-11-21T00:00:00.000Z",
+  "versionId": "1"
+}

@@ -9,10 +9,9 @@ from src.config import RSS_SOURCES, SCRAPE_SOURCES, OUTPUT_DIR
 from src.db import NewsMemory
 from src.scraper import RobustScraper
 from src.ai_agent import NewsEditor
-
+      
 async def main():
     print(f"🚀 Starting Deep Tech Engine | {datetime.now()}")
-    
     db = NewsMemory()
     
     try:
@@ -21,10 +20,12 @@ async def main():
         scraper = RobustScraper()
         editor = NewsEditor()
 
-        # 2. Gather Headlines (Fast)
+        # 2. Gather Data
         raw_rss = await scraper.fetch_rss(RSS_SOURCES)
         raw_site = await scraper.fetch_sites(SCRAPE_SOURCES)
-        all_items = raw_rss + raw_site
+        tia_headlines = await scraper.fetch_techinasia() # New step
+        
+        all_items = raw_rss + raw_site + tia_headlines
 
         if not all_items:
             print("❌ No data collected.")
@@ -32,25 +33,24 @@ async def main():
 
         # 3. Filter Duplicates
         new_items = []
-        print("🔍 Checking Memory (Deduplication)...")
+        print("🔍 Checking Memory...")
         for item in all_items:
-            if not await db.is_duplicate(item['url']):
+            if not await db.is_duplicate(item['title']): # Use title for dedup
                 new_items.append(item)
             else:
-                print(f"   Skipping seen: {item['title'][:20]}...")
+                print(f"   Skipping: {item['title'][:20]}...")
 
         if not new_items:
-            print("😴 No new items. Exiting.")
+            print("😴 No new items.")
             return
 
-        # 4. DEEP READ (The New Step)
-        # We visit the links of the new items to get pricing, specs, and real info.
-        print(f"⚡ Found {len(new_items)} new items. Starting Deep Read...")
-        deep_items = await scraper.enrich_with_full_text(new_items)
+        # 4. DEEP ENRICHMENT
+        print(f"⚡ Enriching {len(new_items)} items...")
+        enriched_items = await scraper.google_search_enrich(new_items) 
 
         # 5. Intelligence Processing
         print("🧠 AI: Writing analysis...")
-        blog_content = editor.filter_and_rewrite(deep_items)
+        blog_content = editor.filter_and_rewrite(enriched_items)
 
         # 6. Publish
         os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -69,7 +69,6 @@ async def main():
 
     except Exception as e:
         print(f"🚨 FATAL ERROR: {e}")
-    
     finally:
         print("🏁 Mission Complete.")
 

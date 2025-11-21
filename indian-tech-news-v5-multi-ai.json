@@ -1,0 +1,596 @@
+
+{
+  "name": "Indian Tech News v5 - Groq Powered",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "hoursInterval": 12
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Every 12 Hours",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 400]
+    },
+    {
+      "parameters": {
+        "url": "https://inc42.com/feed/",
+        "options": {}
+      },
+      "id": "rss-inc42",
+      "name": "RSS: Inc42",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1,
+      "position": [460, 100]
+    },
+    {
+      "parameters": {
+        "url": "https://news.google.com/rss/search?q=site:entrackr.com&hl=en-IN&gl=IN&ceid=IN:en",
+        "options": {}
+      },
+      "id": "rss-entrackr",
+      "name": "RSS: Entrackr",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1,
+      "position": [460, 200]
+    },
+    {
+      "parameters": {
+        "url": "https://yourstory.com/feed",
+        "options": {}
+      },
+      "id": "rss-yourstory",
+      "name": "RSS: YourStory",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://news.google.com/rss/search?q=site:the-ken.com&hl=en-IN&gl=IN&ceid=IN:en",
+        "options": {}
+      },
+      "id": "rss-theken",
+      "name": "RSS: The Ken",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1,
+      "position": [460, 400]
+    },
+    {
+      "parameters": {
+        "url": "https://www.tigerfeathers.in/feed",
+        "options": {}
+      },
+      "id": "rss-tigerfeathers",
+      "name": "RSS: Tigerfeathers",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1,
+      "position": [460, 500]
+    },
+    {
+      "parameters": {
+        "url": "https://news.google.com/rss/search?q=site:economictimes.indiatimes.com+tech+startup&hl=en-IN&gl=IN&ceid=IN:en",
+        "options": {}
+      },
+      "id": "rss-ettech",
+      "name": "RSS: ET Tech",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1,
+      "position": [460, 600]
+    },
+    {
+      "parameters": {
+        "url": "https://news.google.com/rss/search?q=site:livemint.com+technology+startup&hl=en-IN&gl=IN&ceid=IN:en",
+        "options": {}
+      },
+      "id": "rss-mint",
+      "name": "RSS: Mint Tech",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1,
+      "position": [460, 700]
+    },
+    {
+      "parameters": {
+        "url": "https://news.google.com/rss/search?q=India+defense+technology+startup&hl=en-IN&gl=IN&ceid=IN:en",
+        "options": {}
+      },
+      "id": "rss-defense",
+      "name": "RSS: Indian Defense Tech",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1,
+      "position": [680, 100]
+    },
+    {
+      "parameters": {
+        "url": "https://news.google.com/rss/search?q=India+space+technology+ISRO+startup&hl=en-IN&gl=IN&ceid=IN:en",
+        "options": {}
+      },
+      "id": "rss-space",
+      "name": "RSS: Indian Space Tech",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1,
+      "position": [680, 200]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://www.reddit.com/r/IndianStartups/hot.json?limit=10",
+        "authentication": "none",
+        "options": {
+          "headers": {
+            "entries": [
+              {
+                "name": "User-Agent",
+                "value": "n8n-workflow/1.0"
+              }
+            ]
+          }
+        }
+      },
+      "id": "http-reddit",
+      "name": "Reddit: IndianStartups",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://hn.algolia.com/api/v1/search?query=india+startup&tags=story&hitsPerPage=10",
+        "authentication": "none",
+        "options": {}
+      },
+      "id": "http-hackernews",
+      "name": "Hacker News: India",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 400]
+    },
+    {
+      "parameters": {
+        "mode": "append",
+        "options": {}
+      },
+      "id": "merge-all",
+      "name": "Merge All Sources",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [900, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "const normalized = [];\n\nfor (const item of $input.all()) {\n  let newsItem = {\n    title: '',\n    url: '',\n    source: '',\n    content: '',\n    timestamp: new Date().toISOString()\n  };\n\n  // Handle RSS Feed\n  if (item.json.title && item.json.link) {\n    newsItem.title = item.json.title;\n    newsItem.url = item.json.link;\n    newsItem.source = item.json.feed?.title || 'RSS Feed';\n    newsItem.content = item.json.contentSnippet || item.json.description || item.json.content || '';\n  }\n  \n  // Handle Reddit\n  else if (item.json.data?.children) {\n    for (const child of item.json.data.children) {\n      const post = child.data;\n      if (post && post.title) {\n        normalized.push({\n          title: post.title,\n          url: post.url || `https://reddit.com${post.permalink}`,\n          source: 'Reddit r/IndianStartups',\n          content: post.selftext || post.title,\n          timestamp: new Date(post.created_utc * 1000).toISOString()\n        });\n      }\n    }\n    continue;\n  }\n  \n  // Handle Hacker News\n  else if (item.json.hits) {\n    for (const hit of item.json.hits) {\n      if (hit && hit.title) {\n        normalized.push({\n          title: hit.title,\n          url: hit.url || `https://news.ycombinator.com/item?id=${hit.objectID}`,\n          source: 'Hacker News',\n          content: hit.story_text || hit.title,\n          timestamp: new Date(hit.created_at).toISOString()\n        });\n      }\n    }\n    continue;\n  }\n\n  if (newsItem.title) {\n    normalized.push(newsItem);\n  }\n}\n\n// Remove duplicates by title\nconst unique = [];\nconst seen = new Set();\n\nfor (const item of normalized) {\n  const key = item.title.toLowerCase().trim();\n  if (!seen.has(key)) {\n    seen.add(key);\n    unique.push(item);\n  }\n}\n\nreturn unique.slice(0, 25).map(item => ({ json: item }));"
+      },
+      "id": "code-normalize",
+      "name": "Normalize & Deduplicate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 50/50 routing between Groq and Gemini\nconst items = $input.all();\n\nconst output = [];\n\nfor (let i = 0; i < items.length; i++) {\n  const item = items[i];\n  const ai_route = Math.random() < 0.5 ? 'gemini' : 'groq';\n\n  output.push({\n    json: {\n      ...item.json,\n      ai_route,\n      item_index: i\n    }\n  });\n}\n\nreturn output;"
+      },
+      "id": "split-load",
+      "name": "Route 50/50 (Groq/Gemini)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1340, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.ai_route }}",
+              "operation": "equals",
+              "value2": "gemini"
+            }
+          ]
+        }
+      },
+      "id": "filter-gemini",
+      "name": "Filter: Gemini (20%)",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [1560, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.ai_route }}",
+              "operation": "equals",
+              "value2": "groq"
+            }
+          ]
+        }
+      },
+      "id": "filter-groq",
+      "name": "Filter: Groq (80%)",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [1560, 500]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={{ $env.GEMINI_API_KEY }}",
+        "authentication": "none",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"contents\": [{\n    \"parts\": [{\n      \"text\": \"You are analyzing Indian tech news for a daily newsletter. Write a summary in the style of 'Runtime' channel - concise, technical, and insightful.\\n\\nFormat:\\n* **[Title/Company Name]**: [One sentence summary]\\n  * *Details:* [Key technical/business facts]\\n  * *Signal:* [Why this matters for Indian tech ecosystem]\\n  * *Source:* {{ $json.url }}\\n\\nSummarize this:\\n\\nTitle: {{ $json.title }}\\nSource: {{ $json.source }}\\nContent: {{ $json.content.substring(0, 800) }}\"\n    }]\n  }]\n}",
+        "options": {}
+      },
+      "id": "ai-gemini",
+      "name": "AI: Gemini (20%)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1780, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "authentication": "none",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"llama3-70b-8192\",\n  \"messages\": [{\n    \"role\": \"system\",\n    \"content\": \"You are analyzing Indian tech news for a daily newsletter. Write summaries in the style of 'Runtime' channel - concise, technical, and insightful.\\n\\nFormat:\\n* **[Title/Company Name]**: [One sentence summary]\\n  * *Details:* [Key technical/business facts]\\n  * *Signal:* [Why this matters for Indian tech ecosystem]\\n  * *Source:* [URL]\"\n  }, {\n    \"role\": \"user\",\n    \"content\": \"Summarize this:\\n\\nTitle: {{ $json.title }}\\nSource: {{ $json.source }}\\nURL: {{ $json.url }}\\nContent: {{ $json.content.substring(0, 800) }}\"\n  }],\n  \"temperature\": 0.6,\n  \"max_tokens\": 500\n}",
+        "options": {
+          "headers": {
+            "entries": [
+              {
+                "name": "Authorization",
+                "value": "=Bearer {{ $env.GROQ_API_KEY }}"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "id": "ai-groq",
+      "name": "AI: Groq (80%)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1780, 500]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract AI responses from both providers\nconst items = $input.all();\nconst processed = [];\n\nfor (const item of items) {\n  let aiResponse = 'No summary available';\n  \n  // Handle Gemini response format\n  if (item.json.candidates?.[0]?.content?.parts?.[0]?.text) {\n    aiResponse = item.json.candidates[0].content.parts[0].text;\n  }\n  // Handle Groq/OpenAI response format\n  else if (item.json.choices?.[0]?.message?.content) {\n    aiResponse = item.json.choices[0].message.content;\n  }\n  \n  processed.push({\n    json: {\n      summary: aiResponse,\n      original_title: item.json.title || 'Unknown',\n      original_url: item.json.url || 'Unknown'\n    }\n  });\n}\n\nreturn processed;"
+      },
+      "id": "extract-responses",
+      "name": "Extract AI Responses",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2000, 400]
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "options": {}
+      },
+      "id": "aggregate-summaries",
+      "name": "Aggregate All Summaries",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [2220, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get all items with their summaries\nconst items = $('Extract AI Responses').all();\n\n// Get current date\nconst date = new Date();\nconst dateStr = date.toISOString().split('T')[0];\nconst readableDate = date.toLocaleDateString('en-US', { \n  day: 'numeric', \n  month: 'short', \n  year: 'numeric' \n});\n\n// Build markdown content\nlet markdown = `# Daily Intel: ${readableDate}\\n\\n`;\nmarkdown += `## ⚡ Indian Tech Signals\\n\\n`;\n\n// Add each summary\nfor (const item of items) {\n  const summary = item.json.summary || 'No summary available';\n  markdown += summary + '\\n\\n';\n}\n\nmarkdown += `---\\n*🤖 Generated by n8n Tech News Engine | ${items.length} items from 12 sources*\\n`;\nmarkdown += `*Powered by: Groq AI (llama3-70b-8192)*\\n`;\n\nreturn [{\n  json: {\n    markdown: markdown,\n    filename: `${dateStr}.md`,\n    date: dateStr,\n    itemCount: items.length\n  }\n}];"
+      },
+      "id": "create-markdown",
+      "name": "Create Markdown Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2440, 400]
+    }
+  ],
+  "connections": {
+    "Every 12 Hours": {
+      "main": [
+        [
+          {
+            "node": "RSS: Inc42",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "RSS: Entrackr",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "RSS: YourStory",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "RSS: The Ken",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "RSS: Tigerfeathers",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "RSS: ET Tech",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "RSS: Mint Tech",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "RSS: Indian Defense Tech",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "RSS: Indian Space Tech",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Reddit: IndianStartups",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Hacker News: India",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RSS: Inc42": {
+      "main": [
+        [
+          {
+            "node": "Merge All Sources",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RSS: Entrackr": {
+      "main": [
+        [
+          {
+            "node": "Merge All Sources",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "RSS: YourStory": {
+      "main": [
+        [
+          {
+            "node": "Merge All Sources",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "RSS: The Ken": {
+      "main": [
+        [
+          {
+            "node": "Merge All Sources",
+            "type": "main",
+            "index": 3
+          }
+        ]
+      ]
+    },
+    "RSS: Tigerfeathers": {
+      "main": [
+        [
+          {
+            "node": "Merge All Sources",
+            "type": "main",
+            "index": 4
+          }
+        ]
+      ]
+    },
+    "RSS: ET Tech": {
+      "main": [
+        [
+          {
+            "node": "Merge All Sources",
+            "type": "main",
+            "index": 5
+          }
+        ]
+      ]
+    },
+    "RSS: Mint Tech": {
+      "main": [
+        [
+          {
+            "node": "Merge All Sources",
+            "type": "main",
+            "index": 6
+          }
+        ]
+      ]
+    },
+    "RSS: Indian Defense Tech": {
+      "main": [
+        [
+          {
+            "node": "Merge All Sources",
+            "type": "main",
+            "index": 7
+          }
+        ]
+      ]
+    },
+    "RSS: Indian Space Tech": {
+      "main": [
+        [
+          {
+            "node": "Merge All Sources",
+            "type": "main",
+            "index": 8
+          }
+        ]
+      ]
+    },
+    "Reddit: IndianStartups": {
+      "main": [
+        [
+          {
+            "node": "Merge All Sources",
+            "type": "main",
+            "index": 9
+          }
+        ]
+      ]
+    },
+    "Hacker News: India": {
+      "main": [
+        [
+          {
+            "node": "Merge All Sources",
+            "type": "main",
+            "index": 10
+          }
+        ]
+      ]
+    },
+    "Merge All Sources": {
+      "main": [
+        [
+          {
+            "node": "Normalize & Deduplicate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize & Deduplicate": {
+      "main": [
+        [
+          {
+            "node": "Route to Groq (100%)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route 50/50 (Groq/Gemini)": {
+      "main": [
+        [
+          {
+            "node": "Filter: Groq (80%)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Filter: Gemini (20%)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter: Gemini (20%)": {
+      "main": [
+        [
+          {
+            "node": "AI: Gemini (20%)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter: Groq (80%)": {
+      "main": [
+        [
+          {
+            "node": "AI: Groq (80%)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI: Gemini (20%)": {
+      "main": [
+        [
+          {
+            "node": "Extract AI Responses",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI: Groq (80%)": {
+      "main": [
+        [
+          {
+            "node": "Extract AI Responses",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract AI Responses": {
+      "main": [
+        [
+          {
+            "node": "Aggregate All Summaries",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate All Summaries": {
+      "main": [
+        [
+          {
+            "node": "Create Markdown Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2025-11-21T00:00:00.000Z",
+  "versionId": "5"
+}
