@@ -1,0 +1,549 @@
+{
+  "name": "Indian Tech News v9 - Maximum Signal",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "hoursInterval": 6
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Every 6 Hours",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [180, 400]
+    },
+    {
+      "parameters": {
+        "url": "https://inc42.com/feed/",
+        "options": {}
+      },
+      "id": "rss-inc42",
+      "name": "RSS: Inc42 (General)",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1,
+      "position": [460, 100]
+    },
+    {
+      "parameters": {
+        "url": "https://news.google.com/rss/search?q=site:entrackr.com&hl=en-IN&gl=IN&ceid=IN:en",
+        "options": {}
+      },
+      "id": "rss-entrackr",
+      "name": "RSS: Entrackr (Deals)",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1,
+      "position": [460, 200]
+    },
+    {
+      "parameters": {
+        "url": "https://analyticsindiamag.com/feed/",
+        "options": {}
+      },
+      "id": "rss-aim",
+      "name": "RSS: Analytics India (AI)",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://news.google.com/rss/search?q=%22Speciale+Invest%22+OR+%22Lightspeed+India%22+OR+%22Elevation+Capital%22+OR+%22Blume+Ventures%22+funding+startup&hl=en-IN&gl=IN&ceid=IN:en",
+        "options": {}
+      },
+      "id": "rss-vc-watch",
+      "name": "RSS: VC Watch (Top DeepTech Funds)",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1,
+      "position": [460, 400]
+    },
+    {
+      "parameters": {
+        "url": "https://news.google.com/rss/search?q=India+robotics+startup+OR+India+drone+startup+OR+India+semiconductor+startup+OR+India+hard+tech&hl=en-IN&gl=IN&ceid=IN:en",
+        "options": {}
+      },
+      "id": "rss-robotics",
+      "name": "RSS: Robotics & Hardware",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1,
+      "position": [460, 500]
+    },
+    {
+      "parameters": {
+        "url": "https://news.google.com/rss/search?q=India+SpaceTech+startup+OR+ISRO+startup+OR+iDEX+defense+news&hl=en-IN&gl=IN&ceid=IN:en",
+        "options": {}
+      },
+      "id": "rss-space-defense",
+      "name": "RSS: Space & Defense",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1,
+      "position": [460, 600]
+    },
+    {
+      "parameters": {
+        "url": "https://news.google.com/rss/search?q=India+BioTech+startup+OR+India+HealthTech+funding+OR+India+CleanTech+startup&hl=en-IN&gl=IN&ceid=IN:en",
+        "options": {}
+      },
+      "id": "rss-bio-clean",
+      "name": "RSS: Bio/Agri/Clean Tech",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1,
+      "position": [460, 700]
+    },
+    {
+      "parameters": {
+        "url": "https://www.tigerfeathers.in/feed",
+        "options": {}
+      },
+      "id": "rss-tigerfeathers",
+      "name": "RSS: Tigerfeathers (Analysis)",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1,
+      "position": [460, 800]
+    },
+    {
+      "parameters": {
+        "mode": "append",
+        "options": {}
+      },
+      "id": "merge-all",
+      "name": "Merge All Sources",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [700, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "const normalized = [];\nconst oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);\n\nfor (const item of $input.all()) {\n  // 1. Extract Date\n  let itemDate = new Date();\n  if (item.json.pubDate) itemDate = new Date(item.json.pubDate);\n  else if (item.json.isoDate) itemDate = new Date(item.json.isoDate);\n  else if (item.json.date) itemDate = new Date(item.json.date);\n\n  // 2. Filter: Drop items older than 24 hours\n  if (itemDate < oneDayAgo) continue;\n\n  // 3. Normalize Structure\n  let newsItem = {\n    title: item.json.title || '',\n    url: item.json.link || item.json.url || '',\n    source: item.json.feed?.title || 'News Source',\n    content: item.json.contentSnippet || item.json.description || item.json.content || '',\n    timestamp: itemDate.toISOString()\n  };\n\n  if (newsItem.title) {\n    normalized.push(newsItem);\n  }\n}\n\n// 4. Deduplicate by Title\nconst unique = [];\nconst seen = new Set();\nfor (const item of normalized) {\n  const key = item.title.toLowerCase().trim();\n  if (!seen.has(key)) {\n    seen.add(key);\n    unique.push(item);\n  }\n}\n\n// 5. Shuffle for Variety\nfor (let i = unique.length - 1; i > 0; i--) {\n    const j = Math.floor(Math.random() * (i + 1));\n    [unique[i], unique[j]] = [unique[j], unique[i]];\n}\n\n// Return top 40 (Increased from 25 to catch more signals)\nreturn unique.slice(0, 40).map(item => ({ json: item }));"
+      },
+      "id": "code-filter-24h",
+      "name": "Filter 24h & Normalize (Limit 40)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [920, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Guaranteed 50/50 routing - alternates between Groq and Gemini\nconst items = $input.all();\nconst output = [];\n\nlet groqCount = 0;\nlet geminiCount = 0;\n\nfor (let i = 0; i < items.length; i++) {\n  const item = items[i];\n  const ai_route = i % 2 === 0 ? 'groq' : 'gemini';\n  \n  if (ai_route === 'groq') groqCount++;\n  if (ai_route === 'gemini') geminiCount++;\n\n  output.push({\n    json: {\n      ...item.json,\n      ai_route: ai_route,\n      item_index: i\n    }\n  });\n}\n\nreturn output;"
+      },
+      "id": "split-load",
+      "name": "Route 50/50 (Groq/Gemini)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1140, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.ai_route }}",
+              "operation": "equals",
+              "value2": "gemini"
+            }
+          ]
+        }
+      },
+      "id": "filter-gemini",
+      "name": "Filter: Gemini",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [1360, 280]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.ai_route }}",
+              "operation": "equals",
+              "value2": "groq"
+            }
+          ]
+        }
+      },
+      "id": "filter-groq",
+      "name": "Filter: Groq",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [1360, 540]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "gemini-batch",
+      "name": "Gemini Batching",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [1560, 280]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={{ $env.GEMINI_API_KEY }}",
+        "authentication": "none",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"contents\": [{\n    \"parts\": [{\n      \"text\": \"You are a DeepTech Scout for an elite VC newsletter.\\n\\nMandate:\\n1. Identify 'High Signal' news: Robotics, SpaceTech, Defense, Semiconductors, AI Infra, and BioTech in India.\\n2. If a story is about DeepTech/HardTech, YOU MUST SUMMARIZE IT, even if it's early-stage or small.\\n3. Ignore generic consumer/marketing fluff unless it's a massive exit.\\n\\nFormat:\\n* **[Sector Emoji] [Title/Company]**: [Sharp technical summary]\\n  * *Signal:* [Technical edge, strategic value, or deal significance]\\n  * *Source:* {{ $json.url }}\\n\\nSector Emojis to use:\\n🤖 Robotics/Hardware\\n🚀 Space/Defense\\n🧠 AI/DeepTech\\n🧬 Bio/Health\\n💰 Venture Deal\\n\\nInput:\\nTitle: {{ $json.title }}\\nContent: {{ $json.content.substring(0, 800) }}\"\n    }]\n  }]\n}",
+        "options": {}
+      },
+      "id": "ai-gemini",
+      "name": "AI: Gemini (Scout)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1780, 280],
+      "retryOnFail": true,
+      "maxTries": 5,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "amount": 4,
+        "unit": "seconds"
+      },
+      "id": "wait-gemini",
+      "name": "Throttling (4s)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [2000, 280]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "authentication": "none",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"llama3-70b-8192\",\n  \"messages\": [{\n    \"role\": \"system\",\n    \"content\": \"You are a DeepTech Scout. Prioritize HardTech (Space, Defense, Robotics, AI) over consumer apps. Use Sector Emojis (🚀, 🤖, 🧠, 🧬).\"\n  }, {\n    \"role\": \"user\",\n    \"content\": \"Summarize this news. If it's DeepTech, provide technical signal. If it's generic, keep it brief.\\n\\nTitle: {{ $json.title }}\\nContent: {{ $json.content.substring(0, 800) }}\\n\\nFormat:\\n* **[Emoji] [Title/Company]**: [Summary]\\n  * *Signal:* [Why it matters]\\n  * *Source:* [URL]\"\n  }],\n  \"temperature\": 0.5,\n  \"max_tokens\": 400\n}",
+        "options": {
+          "headers": {
+            "entries": [
+              {
+                "name": "Authorization",
+                "value": "=Bearer {{ $env.GROQ_API_KEY }}"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "id": "ai-groq",
+      "name": "AI: Groq (Scout)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1560, 540]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract AI responses from both providers\nconst items = $input.all();\nconst processed = [];\n\nfor (const item of items) {\n  let aiResponse = 'No summary available';\n  \n  // Handle Gemini response format\n  if (item.json.candidates?.[0]?.content?.parts?.[0]?.text) {\n    aiResponse = item.json.candidates[0].content.parts[0].text;\n  }\n  // Handle Groq/OpenAI response format\n  else if (item.json.choices?.[0]?.message?.content) {\n    aiResponse = item.json.choices[0].message.content;\n  }\n  \n  processed.push({\n    json: {\n      summary: aiResponse,\n      original_title: item.json.title || 'Unknown'\n    }\n  });\n}\n\nreturn processed;"
+      },
+      "id": "extract-responses",
+      "name": "Extract AI Responses",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2220, 400]
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "options": {}
+      },
+      "id": "aggregate-summaries",
+      "name": "Aggregate All Summaries",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [2440, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get all items with their summaries\nconst items = $('Extract AI Responses').all();\nconst date = new Date();\nconst dateStr = date.toISOString().split('T')[0];\nconst readableDate = date.toLocaleDateString('en-US', { \n  day: 'numeric', \n  month: 'short', \n  year: 'numeric' \n});\n\nlet markdown = `# ⚡ DeepTech Signal Report: ${readableDate}\\n\\n`;\nmarkdown += `> *Scanning 8 high-signal sources for Robotics, Space, AI & Deals*\\n\\n`;\n\nfor (const item of items) {\n  const summary = item.json.summary || 'No summary available';\n  markdown += summary + '\\n\\n';\n}\n\nmarkdown += `---\\n*Generated by n8n DeepTech Engine v9*`;\n\nreturn [{\n  json: {\n    markdown: markdown,\n    filename: `DeepTech_Signal_${dateStr}.md`,\n    date: dateStr\n  }\n}];"
+      },
+      "id": "create-markdown",
+      "name": "Create Markdown Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2660, 400]
+    }
+  ],
+  "connections": {
+    "Every 6 Hours": {
+      "main": [
+        [
+          {
+            "node": "RSS: Inc42 (General)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "RSS: Entrackr (Deals)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "RSS: Analytics India (AI)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "RSS: VC Watch (Top DeepTech Funds)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "RSS: Robotics & Hardware",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "RSS: Space & Defense",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "RSS: Bio/Agri/Clean Tech",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "RSS: Tigerfeathers (Analysis)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RSS: Inc42 (General)": {
+      "main": [
+        [
+          {
+            "node": "Merge All Sources",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RSS: Entrackr (Deals)": {
+      "main": [
+        [
+          {
+            "node": "Merge All Sources",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "RSS: Analytics India (AI)": {
+      "main": [
+        [
+          {
+            "node": "Merge All Sources",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "RSS: VC Watch (Top DeepTech Funds)": {
+      "main": [
+        [
+          {
+            "node": "Merge All Sources",
+            "type": "main",
+            "index": 3
+          }
+        ]
+      ]
+    },
+    "RSS: Robotics & Hardware": {
+      "main": [
+        [
+          {
+            "node": "Merge All Sources",
+            "type": "main",
+            "index": 4
+          }
+        ]
+      ]
+    },
+    "RSS: Space & Defense": {
+      "main": [
+        [
+          {
+            "node": "Merge All Sources",
+            "type": "main",
+            "index": 5
+          }
+        ]
+      ]
+    },
+    "RSS: Bio/Agri/Clean Tech": {
+      "main": [
+        [
+          {
+            "node": "Merge All Sources",
+            "type": "main",
+            "index": 6
+          }
+        ]
+      ]
+    },
+    "RSS: Tigerfeathers (Analysis)": {
+      "main": [
+        [
+          {
+            "node": "Merge All Sources",
+            "type": "main",
+            "index": 7
+          }
+        ]
+      ]
+    },
+    "Merge All Sources": {
+      "main": [
+        [
+          {
+            "node": "Filter 24h & Normalize (Limit 40)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter 24h & Normalize (Limit 40)": {
+      "main": [
+        [
+          {
+            "node": "Route 50/50 (Groq/Gemini)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route 50/50 (Groq/Gemini)": {
+      "main": [
+        [
+          {
+            "node": "Filter: Gemini",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Filter: Groq",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter: Gemini": {
+      "main": [
+        [
+          {
+            "node": "Gemini Batching",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter: Groq": {
+      "main": [
+        [
+          {
+            "node": "AI: Groq (Scout)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini Batching": {
+      "main": [
+        [
+          {
+            "node": "AI: Gemini (Scout)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI: Gemini (Scout)": {
+      "main": [
+        [
+          {
+            "node": "Extract AI Responses",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Throttling (4s)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Throttling (4s)": {
+      "main": [
+        [
+          {
+            "node": "Gemini Batching",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI: Groq (Scout)": {
+      "main": [
+        [
+          {
+            "node": "Extract AI Responses",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract AI Responses": {
+      "main": [
+        [
+          {
+            "node": "Aggregate All Summaries",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate All Summaries": {
+      "main": [
+        [
+          {
+            "node": "Create Markdown Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": []
+}
